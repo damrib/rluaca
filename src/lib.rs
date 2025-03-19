@@ -19,3 +19,5 @@ pub mod garbage_collection;
 pub mod interpreter;
 
 pub mod object;
+
+pub mod alloc;

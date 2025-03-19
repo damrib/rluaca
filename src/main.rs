@@ -23,6 +23,11 @@ fn main() {
             process::exit(1);
         });
 
-    eval_program(main);
+    eval_program(main).unwrap_or_else(
+        |err|{
+            println!("Problem interpreting bytecode: {err}");
+            process::exit(1);
+        }
+    );
 
 }

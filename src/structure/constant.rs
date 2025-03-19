@@ -35,4 +35,11 @@ impl Constant {
         }
     }  
 
+    pub fn get_string(&self) -> String {
+        match self {
+            Constant::String(s) => { String::from(s) }
+            _ => panic!("should not happen")
+        }
+    }
+
 }
