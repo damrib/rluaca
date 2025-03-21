@@ -3,6 +3,7 @@ use crate::structure::constant::Constant;
 use crate::structure::instruction::Instruction;
 
 use std::fmt;
+#[derive(Debug)]
 pub struct Function{
     pub name          : String,
     pub first_line    : u64,

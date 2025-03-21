@@ -182,7 +182,7 @@ fn get_register_abc(instruction_bytes: u64, opcode: u64) -> Result<Instruction, 
 
     let a = get_bits(instruction_bytes, 6, 8);
     let b = get_bits(instruction_bytes, 23, 9);
-    let c = get_bits(instruction_bytes, 15, 9);
+    let c = get_bits(instruction_bytes, 14, 9);
 
     Instruction::build_abc(opcode, a, b, c).map_err(
         |err| {

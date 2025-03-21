@@ -1,7 +1,4 @@
-use simple_stack::Stack;
-
-use crate::alloc::TypeLua;
-use crate::garbage_collection::{Collector, HeapError};
+use crate::garbage_collection::HeapError;
 use crate::structure::{function::Function, instruction::Instruction};
 use crate::object::Value;
 use std::error::Error;
@@ -12,7 +9,9 @@ pub enum InterpreterError {
     GlobalError {
         #[from]
         heap_error : HeapError
-    }
+    },
+    #[error("Return not caught")]
+    ReturnError
 }
 
 // TODO: implement Runtime Error
@@ -43,17 +42,8 @@ impl <'frm> CallFrame<'frm> {
         self.frame[a] = register_b;
     }
 
-    pub fn store_global<'gc>(&'frm mut self, index : usize, heap: &'gc Collector, gbl_name : String) -> Result<(), InterpreterError> 
-    where 'gc : 'frm {
-        let val = heap.extract_global(gbl_name).or_else(
-            |err| {
-                return Err(InterpreterError::GlobalError { heap_error: err })
-            }
-        )?;
-
-        self.frame[index] = val;
-
-        Ok(())
+    pub fn len(&self) -> usize {
+        self.frame.len()
     }
 
 }
@@ -84,8 +74,9 @@ fn move_operation(frame: &mut CallFrame<'_>, a : usize, b : usize) {
 }
 
 fn get_rk<'frm>(func : &Function, frame : &'frm CallFrame<'_>, r : usize) -> Value<'frm> {
-    if r > 256 {
-        func.const_list[r].as_value()
+    println!("ADD");
+    if r >= 256 {
+        func.const_list[r % 256].as_value()
     } else {
         frame.load(r)
     }
@@ -97,82 +88,88 @@ fn add(func : &Function, frame: &mut CallFrame<'_>, a : usize, b : usize, c : us
     frame.store(a, Value::Number(rk_b.get_number().unwrap() + rk_c.get_number().unwrap()));
 }
 
-fn get_global<'gc, 'frm>(func: &Function, frame: &'frm mut CallFrame<'_>, heap: &'gc Collector, a : usize, b: usize) -> Result<(), InterpreterError> 
-where 'gc : 'frm {
-    let gbl_name = func.const_list[b].get_string();
+// TODO Handle Upvalues
+fn return_instruction<'frm>(frame : &mut CallFrame<'frm>, a : usize, b : usize, return_values: &mut Vec<Value<'frm>>) -> Result<(), InterpreterError> {
+    let max_index = if b == 0 {
+        frame.len()
+    } else {
+        b - 1
+    };
 
+    for i in 0..max_index {
+        return_values.push(frame.load(a + i));
+    }
     Ok(())
 }
 
-fn set_global<'gc>(func: &Function, frame: &CallFrame<'_>, heap: &'gc mut Collector, a: usize, b: usize) -> Result<(), InterpreterError> {
-    let register_a = frame.load(a);
-    let gbl_name = func.const_list[b].get_string();
+fn jmp_instruction(pc: &mut usize, increment : usize) {
+    *pc += increment;
+}
 
-    let err = match register_a.get_type() {
-        TypeLua::Number => { heap.add_global(&gbl_name, register_a.get_number().unwrap()) }
-        TypeLua::Boolean => { heap.add_global(&gbl_name, register_a.get_boolean().unwrap()) }
-        _ => { panic!("Not implemented yet") }
+fn closure_instruction<'cur>(func: &'cur Function, frame : &mut CallFrame<'cur>, a : usize, b : usize ) -> Result<(), InterpreterError> {
+    let next_func = &func.func_list[b];
+    frame.store(a, Value::LuaFunction(next_func));
+    Ok(())
+}
+
+fn call_instruction(frame: &mut CallFrame<'_>, a : usize, b : usize, c : usize) -> Result<(), InterpreterError> {
+    let func_val = frame.load(a);
+    let next_func = func_val.get_function().unwrap();
+    let mut new_frame = CallFrame::with_capacity(next_func.stack);
+    let max_index = if b == 0 {
+        frame.len()
+    } else {
+        b
     };
-
-    err.or_else(
-        |err| {
-            return Err(InterpreterError::GlobalError { heap_error: err })
-        }
-    )
-}
-
-// TODO Handle Upvalues
-fn return_instruction<'stk, 'frm, 'val>(stack: &'stk mut Stack<CallFrame<'_>>, frame : &'frm mut CallFrame<'_>, a : usize, b : usize) -> Result<CallFrame<'frm>, InterpreterError> 
-where 'stk : 'frm, 'frm : 'val {
-    let previous_frame = stack.pop().unwrap(); 
-    if b != 1 {
-
+    for i in 1..max_index {
+        new_frame.store(i - 1, frame.load(a + i));
+    };
+    let returned_values = eval_sequence(next_func, &mut new_frame)?;
+    for i in 0..(c-1) {
+        new_frame.store(i, returned_values[i]);
     }
-    Ok(previous_frame)
+    Ok(())
 }
 
-fn eval_instruction<'stk, 'gc, 'frm>(func : &Function, instr : &Instruction, stack: &'stk mut Stack<CallFrame<'_>>, frame : &'frm mut CallFrame<'_>, heap: &'gc mut Collector, pc : &mut usize) -> Result<(), InterpreterError> 
-where 'gc : 'frm, 'stk : 'frm {
+fn eval_instruction<'cur>(func : &'cur Function, instr : &Instruction, frame : &mut CallFrame<'cur>, pc : &mut usize, return_values : &mut Vec<Value<'cur>>) -> Result<(), InterpreterError> {
 
     // TODO changer champs struct Instruction
     match instr {
-        Instruction::Move(_, a, b, _) => { move_operation(frame, *a as usize, *b as usize); }
-        Instruction::LoadK(_, a, b) => { load_k(func, frame, *a as usize, *b as usize); }
-        Instruction::LoadBool(_, a, b, c) => { load_bool(frame, *a as usize, *b as usize, *c as usize, pc); }
-        Instruction::LoadNil(_, a, b, _) => { load_nil(frame, *a as usize, *b as usize); }
-        Instruction::Add(_, a, b, c) => { add(func, frame, *a as usize, *b as usize, *c as usize); }
-        Instruction::Return(_, a, b, _) => { return_instruction(stack, frame, *a as usize, *b as usize)?; }
-        Instruction::GetGlobal(_, a, b) => { get_global(func, frame, heap, *a as usize, *b as usize)? }
-        Instruction::SetGlobal(_, a, b) => { set_global(func, frame, heap, *a as usize, *b as usize)? }
+        Instruction::Move(_, a, b, _) => { move_operation(frame, *a as usize, *b as usize) }
+        Instruction::LoadK(_, a, b) => { load_k(func, frame, *a as usize, *b as usize) }
+        Instruction::LoadBool(_, a, b, c) => { load_bool(frame, *a as usize, *b as usize, *c as usize, pc) }
+        Instruction::LoadNil(_, a, b, _) => { load_nil(frame, *a as usize, *b as usize) }
+        Instruction::Add(_, a, b, c) => { add(func, frame, *a as usize, *b as usize, *c as usize) }
+        Instruction::Jmp(_, _, b) => { jmp_instruction(pc, *b as usize) }
+        Instruction::Call(_, a, b, c) => { call_instruction(frame, *a as usize, *b as usize, *c as usize)? } 
+        Instruction::Closure(_, a, b) => { closure_instruction(func, frame, *a as usize, *b as usize)? }
+        Instruction::Return(_, a, b, _) => { return_instruction(frame, *a as usize, *b as usize, return_values)? }
         _ => { panic!("Not implemented {}", pc) }
     }
 
     Ok(())
 }
 
-fn eval_sequence<'gc, 'frm, 'stk>(main : Function, stack : &mut Stack<CallFrame<'_>>, heap : &'gc mut Collector) -> Result<(), InterpreterError> 
-where 'gc: 'frm, 'stk : 'frm {
+fn eval_sequence<'cur>(main : &'cur Function, frame : &mut CallFrame<'cur>) -> Result<Vec<Value<'cur>>, InterpreterError> {
 
     let mut pc = 0;
 
-    let mut frame : CallFrame<'_> = CallFrame::with_capacity(main.stack);
+    let mut result: Vec<Value<'_>> = Vec::new();
 
     while pc < main.instr_list.len() {
         // TODO make fields of Function private
-        eval_instruction(&main, &main.instr_list[pc], stack, &mut frame, heap, &mut pc)?;
+        eval_instruction(&main, &main.instr_list[pc], frame, &mut pc, &mut result)?;
         pc += 1;
     }
 
-    Ok(())
+    Ok(result)
 }
 
 pub fn eval_program(main : Function) -> Result<(), Box<dyn Error>> {
 
-    let mut heap = Collector::new();
-    let mut stack: Stack<CallFrame<'_>> = Stack::new();
-    stack.push(CallFrame::with_capacity(main.stack));
+    let mut frame : CallFrame<'_> = CallFrame::with_capacity(main.stack);
 
-    eval_sequence(main, &mut stack, &mut heap)?;
+    eval_sequence(&main, &mut frame)?;
 
     Ok(())
 }

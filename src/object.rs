@@ -1,16 +1,23 @@
-use std::thread::Scope;
+use crate::structure::function::Function;
 
-use crate::alloc::{HasHeader, ScopedPtr, TypeLua};
+#[derive(PartialEq, Debug)]
+pub enum TypeLua{
+    Number,
+    Boolean,
+    String,
+    Nil,
+    Table,
+    Function
+}
 
 // I used a similar representation as the one described here: https://
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum Value<'gc> {
     Number(f64),
     Boolean(bool),
-    Nil,
-    ObjectNumber(ScopedPtr<'gc, f64>),
-    ObjectBoolean(ScopedPtr<'gc, bool>),
+    LuaFunction(&'gc Function),
+    Nil
 }
 
 impl <'gc> Value<'gc> {
@@ -23,9 +30,9 @@ impl <'gc> Value<'gc> {
     }
 
     pub fn get_number(&self) -> Option<f64> {
+        dbg![self.get_type()];
         match self {
             Self::Number(res) => { Some(*res) }
-            Self::ObjectNumber(ptr) => { Some(ptr.get()) }
             _ => { None }
         }
     }
@@ -33,7 +40,13 @@ impl <'gc> Value<'gc> {
     pub fn get_boolean(&self) -> Option<bool> {
         match self {
             Self::Boolean(b) => { Some(*b) }
-            Self::ObjectBoolean(ptr) => { Some(ptr.get()) }
+            _ => { None }
+        }
+    }
+
+    pub fn get_function(&self) -> Option<&Function> {
+        match self {
+            Self::LuaFunction(f) => { Some(f) }
             _ => { None }
         }
     }
@@ -42,10 +55,9 @@ impl <'gc> Value<'gc> {
 
         match self {
             Self::Boolean(_) => { TypeLua::Boolean }
-            Self::ObjectBoolean(_) => { TypeLua::Boolean }
             Self::Nil => { TypeLua::Nil }
             Self::Number(_) => { TypeLua::Number }
-            Self::ObjectNumber(_) => { TypeLua::Number }
+            Self::LuaFunction(_) => { TypeLua::Function }
         }
 
     }
