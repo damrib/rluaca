@@ -26,12 +26,13 @@ impl fmt::Display for Constant {
 
 impl Constant {
 
-    pub fn as_value <'guard>(&self) -> Value<'guard> {
-        match *self {
+    pub fn as_value <'guard>(&'guard self) -> Value<'guard> {
+        match self {
             Constant::Null => { Value::Nil },
-            Constant::Boolean(b) => { Value::Boolean(b) },
-            Constant::Number(n) => { Value::Number(n) },
-            Constant::String(_) => panic!("pas encore implemente")
+            Constant::Boolean(b) => { Value::Boolean(*b) },
+            Constant::Number(n) => { Value::Number(*n) },
+            Constant::String(s) => { 
+                Value::LuaString(s)}
         }
     }  
 
