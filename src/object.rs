@@ -12,13 +12,14 @@ pub enum TypeLua{
     Function
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum Value<'gc> {
     Number(f64),
     Boolean(bool),
     LuaFunction(&'gc Function),
     LuaString(&'gc String),
     RuntimeFunction(RuntimeFunction<'gc>),
+    #[default]
     Nil
 }
 
@@ -40,8 +41,9 @@ impl <'gc> Value<'gc> {
     }
 
     pub fn get_boolean(&self) -> Option<bool> {
-        match self {
-            Self::Boolean(b) => { Some(*b) }
+        match *self {
+            Self::Boolean(b) => { Some(b) }
+            Self::Number(n) => { Some(n > 0.) }
             _ => { None }
         }
     }
@@ -78,14 +80,14 @@ impl <'gc> Value<'gc> {
 impl <'gc> fmt::Display for Value<'gc>{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         
-        match *self {
-            Self::Boolean(b) => { write!(f, "{}", b) }
-            Self::Number(n) => { write!(f, "{}", n) }
+        match self {
+            Self::Boolean(b) => { write!(f, "{}", *b) }
+            Self::Number(n) => { write!(f, "{}", *n) }
             Self::Nil => { write!(f, "nil") }
-            Self::LuaString(s) => { write!(f, "{}", s.as_str()) } 
+            Self::LuaString(s) => { write!(f, "{}", (*s).as_str()) } 
             // We display the location of functions in memory
             Self::LuaFunction(adr) => { write!(f, "function: {}", adr) }
-            Self::RuntimeFunction(adr) => { write!(f, "function: {}", adr as usize) }
+            Self::RuntimeFunction(adr) => { write!(f, "function: {}", *adr as usize) }
         }
     }
 }

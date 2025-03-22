@@ -17,7 +17,11 @@ pub struct Function{
     pub func_list     : Vec<Function>,
     pub lines_list    : Vec<u64>,
     pub local_list    : Vec<LocalVariable>,
-    pub upvalues_list : Vec<String>
+    pub upvalues_list : Vec<String>,
+    // To manage the upvalues of each function We need a way to identify
+    // each function uniquely, the name is not enough as compilers
+    // don't always 
+    pub identifier    : usize
 }
 
 impl fmt::Display for Function {
@@ -73,5 +77,19 @@ impl Function {
         }
 
         write!(f, "{tabs}}}\n")
+    }
+
+    fn assign_id(&mut self, mut id : usize) -> usize {
+
+        self.identifier = id;
+        for func in &mut self.func_list {
+            id = func.assign_id(id + 1)
+        }
+
+        id
+    }
+
+    pub fn assign_upval_id(&mut self) -> usize {
+        self.assign_id(0)
     }
 }

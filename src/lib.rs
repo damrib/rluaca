@@ -15,10 +15,7 @@ pub mod decompile {
 }
 
 pub mod garbage_collection;
-
 pub mod interpreter;
-
 pub mod object;
-
 pub mod runtime_library;
 

@@ -207,7 +207,8 @@ fn get_register_abx(instruction_bytes: u64, opcode: u64) -> Result<Instruction, 
 fn get_register_asb(instruction_bytes: u64, opcode: u64) -> Result<Instruction, DecompileError> {
     
     let a = get_bits(instruction_bytes, 6, 8);
-    let b: i64 = get_bits(instruction_bytes, 14, 18) as i64;
+    let b: i64 = get_bits(instruction_bytes, 14, 18) as i64 - 131071;
+
 
     Instruction::build_asb(opcode, a, b).map_err(
         |err| {
@@ -306,7 +307,8 @@ fn decode_function_block(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result
         // TODO Continuer de factoriser le code
         lines_list : decode_lines_list(iter, metadata)?,
         local_list : decode_list(iter, metadata, decode_local_variable)?,
-        upvalues_list : decode_upvalues_list(iter, metadata)?
+        upvalues_list : decode_upvalues_list(iter, metadata)?,
+        identifier : 0
     };
 
     Ok (res)
