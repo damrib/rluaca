@@ -1,6 +1,5 @@
 use std::fmt;
 
-// TODO try to use a lifetime here
 #[derive(Debug)]
 pub struct LocalVariable {
     identifier  : String,

@@ -14,8 +14,11 @@ pub mod decompile {
     mod metadata;
 }
 
-pub mod garbage_collection;
-pub mod interpreter;
-pub mod object;
-pub mod runtime_library;
+pub mod interpreter {
+    mod call_frame;
+    mod global_environment;
+    pub mod interpreter;
+    pub mod object;
+    mod runtime_library;
+}
 

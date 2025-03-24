@@ -18,15 +18,15 @@ impl Vmconfig {
             match args[i].as_str() {
                 "-dump" | "-d" if d == false => { d = true; }
                 "ver=5.1" | "ver=5.3" => { ver = String::from(args[i].as_str()).split_off(4); }
-                other if other.ends_with(".out") => 
+                other /* if other.ends_with(".out") */ => 
                 {
                     if s.is_empty() {
-                        s = String::from(args[i].as_str());
+                        s = String::from(other);
                     } else {
                         return Err("program takes a single .out files");
                     }
                 }
-                _ => { return Err("program argument not reconized"); }
+                //_ => { return Err("program argument not reconized"); }
             }
         }
         

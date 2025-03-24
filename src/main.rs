@@ -1,6 +1,6 @@
 use luaca::config::Vmconfig;
 use luaca::decompile::decompile;
-use luaca::interpreter::eval_program;
+use luaca::interpreter::interpreter::eval_program;
 
 use std::env;
 use std::process;

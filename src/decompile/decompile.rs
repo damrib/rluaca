@@ -30,6 +30,7 @@ enum DecompileError{
     }
 }
 
+/// reads the next byte or return the error passed in argument if there are no more bytes to read 
 fn next_byte_or_error(iter: &mut IntoIter<u8>, err : DecompileError) -> Result<u8, DecompileError> {
     match iter.next() {
         Some(b) => { Ok(b) }
@@ -37,6 +38,7 @@ fn next_byte_or_error(iter: &mut IntoIter<u8>, err : DecompileError) -> Result<u
     }
 }
 
+/// reads size bytes interpreting them as bigendian interger
 fn decode_bigendian(iter: &mut IntoIter<u8>, size: u8) -> Result<u64, DecompileError> {
     let mut res = 0;
     
@@ -48,6 +50,7 @@ fn decode_bigendian(iter: &mut IntoIter<u8>, size: u8) -> Result<u64, DecompileE
     Ok (res)
 }
 
+/// reads size bytes interpreting them as littleendian integer
 fn decode_litendian(iter: &mut IntoIter<u8>, size: u8) -> Result<u64, DecompileError> {
     let mut res = 0;
     let mut acc = 1;
@@ -62,6 +65,7 @@ fn decode_litendian(iter: &mut IntoIter<u8>, size: u8) -> Result<u64, DecompileE
     Ok(res)
 }
 
+/// reads size bytes and return an integer according to the endianness passed in argument
 fn decode_int(iter: &mut IntoIter<u8>, size: u8, bigendian : bool) -> Result<u64, DecompileError> {
 
     let res = if bigendian {
@@ -73,9 +77,10 @@ fn decode_int(iter: &mut IntoIter<u8>, size: u8, bigendian : bool) -> Result<u64
     Ok(res)
 }
 
+/// reads the signature in the header of the file, returns an error if it is incorrect
 fn decode_signature(iter: &mut IntoIter<u8>) -> Result<(), DecompileError> {
 
-    const SIGNATURE: u64 = 457995617;
+    const SIGNATURE: u64 = 0x1B4C7561;
     const SIGNATURE_SIZE : u8 = 4;
 
     let res = decode_bigendian(iter, SIGNATURE_SIZE)?;
@@ -87,6 +92,7 @@ fn decode_signature(iter: &mut IntoIter<u8>) -> Result<(), DecompileError> {
     Ok(())
 }
 
+/// parse the metadata of the given file
 fn decode_metadata(iter: &mut IntoIter<u8>) -> Result<Metadata, DecompileError> {
 
     let mut next_meta_or_error = || {
@@ -108,6 +114,7 @@ fn decode_metadata(iter: &mut IntoIter<u8>) -> Result<Metadata, DecompileError> 
     Ok (metadata)
 }
 
+/// Checks that the metadata of the file are correct (mainly that the version of lua is correct)
 fn verify_metadata(metadata: &Metadata, config: Vmconfig) -> Result<(), DecompileError> {
 
     if u32::from(metadata.version) != config.get_ver() {
@@ -117,6 +124,7 @@ fn verify_metadata(metadata: &Metadata, config: Vmconfig) -> Result<(), Decompil
     Ok (())
 }
 
+/// parse a double number from the file
 fn decode_double(iter: &mut IntoIter<u8>, size: u8, bigendian : bool) -> Result<f64, DecompileError>{
 
     let integer = decode_int(iter, size, bigendian)?;
@@ -126,8 +134,8 @@ fn decode_double(iter: &mut IntoIter<u8>, size: u8, bigendian : bool) -> Result<
     Ok (res)
 }
 
-// TODO obtenir la taille de la chaine de caracteres dans la fonction plut
-// TODO ne plus utilise String
+
+/// parse a string from the file
 fn decode_str(iter: &mut IntoIter<u8>, size: u64) -> Result<String, DecompileError>{
 
     let mut s = String::new();
@@ -139,7 +147,7 @@ fn decode_str(iter: &mut IntoIter<u8>, size: u64) -> Result<String, DecompileErr
             s.push(c);
         }
     
-        // We ignore the next byte as it represents the null character
+        // We ignore the next byte as it represents the null character of the string
         next_byte_or_error(iter, DecompileError::FileFormatError)?;
     
     }
@@ -147,6 +155,7 @@ fn decode_str(iter: &mut IntoIter<u8>, size: u64) -> Result<String, DecompileErr
     Ok(s)
 }
 
+/// parse a constant from the file
 fn decode_constant(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Constant, DecompileError>{
 
     let typ = next_byte_or_error(iter, DecompileError::FileFormatError)?;
@@ -155,8 +164,6 @@ fn decode_constant(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Const
         0 => { Constant::Null }
         1 => { 
             let byte = next_byte_or_error(iter, DecompileError::FileFormatError)?;
-            // TODO: raise error si byte != 0 && byte != 1
-            
             Constant::Boolean(byte != 0)
         }
         3 => {
@@ -174,10 +181,12 @@ fn decode_constant(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Const
     Ok (cst)
 }
 
+/// extract s bytes from n at position p
 fn get_bits(n : u64, p: u8, s: u8) -> u64 {
     (n >> p) & (!((!0)<<s))
 }
 
+/// makes an instruction ABC from the bytes provided
 fn get_register_abc(instruction_bytes: u64, opcode: u64) -> Result<Instruction, DecompileError> {
 
     let a = get_bits(instruction_bytes, 6, 8);
@@ -191,6 +200,7 @@ fn get_register_abc(instruction_bytes: u64, opcode: u64) -> Result<Instruction, 
     )
 } 
 
+/// makes an instruction ABx from the bytes provided
 fn get_register_abx(instruction_bytes: u64, opcode: u64) -> Result<Instruction, DecompileError> {
 
     let a = get_bits(instruction_bytes, 6, 8);
@@ -204,6 +214,7 @@ fn get_register_abx(instruction_bytes: u64, opcode: u64) -> Result<Instruction, 
 
 }
 
+/// makes an instruction AsB from the bytes provided
 fn get_register_asb(instruction_bytes: u64, opcode: u64) -> Result<Instruction, DecompileError> {
     
     let a = get_bits(instruction_bytes, 6, 8);
@@ -218,6 +229,7 @@ fn get_register_asb(instruction_bytes: u64, opcode: u64) -> Result<Instruction, 
     
 } 
 
+/// parse an instruction from the fiel
 fn decode_instruction(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Instruction, DecompileError> {
 
     let instruction_bytes = decode_int(iter, metadata.instr_size, metadata.bigendian)?;
@@ -232,6 +244,7 @@ fn decode_instruction(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<In
     }
 }
 
+/// parse a list of element (Constant, Function, ...) according to the decode function provided
 fn decode_list<T>(iter: &mut IntoIter<u8>, metadata: &Metadata, decoder : fn(&mut IntoIter<u8>, &Metadata) -> Result<T, DecompileError>) -> Result<Vec<T>, DecompileError> {
 
     let capacity = decode_int(iter, metadata.i_size, metadata.bigendian)? as usize;
@@ -245,11 +258,12 @@ fn decode_list<T>(iter: &mut IntoIter<u8>, metadata: &Metadata, decoder : fn(&mu
     Ok(res)
 }
 
+/// parse the list of lines
 fn decode_lines_list(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Vec<u64>, DecompileError> {
 
     let number_lines = decode_int(iter, metadata.i_size, metadata.bigendian)?;
 
-    let capacity = number_lines as usize + (number_lines >> 32) as usize;
+    let capacity = number_lines as usize;
     let mut res: Vec<u64> = Vec::with_capacity(capacity);
 
     for _ in 0..capacity {
@@ -259,12 +273,12 @@ fn decode_lines_list(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Vec
     Ok(res)
 }
 
-
+/// parse the list of upvalues
 fn decode_upvalues_list(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Vec<String>, DecompileError> {
 
     let number_lines = decode_int(iter, metadata.i_size, metadata.bigendian)?;
 
-    let capacity = number_lines as usize + (number_lines >> 32) as usize;
+    let capacity = number_lines as usize;
     let mut res: Vec<String> = Vec::with_capacity(capacity);
 
     for _ in 0..capacity {
@@ -275,6 +289,7 @@ fn decode_upvalues_list(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<
     Ok(res)
 }
 
+/// parse a local variable
 fn decode_local_variable(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<LocalVariable, DecompileError> {
 
     let identifier_size = decode_int(iter, metadata.u_size, metadata.bigendian)?;
@@ -288,11 +303,11 @@ fn decode_local_variable(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result
     Ok(res)
 }
 
+/// parse a function
 fn decode_function_block(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result<Function, DecompileError> {
 
     let name_size = decode_int(iter, metadata.u_size, metadata.bigendian)?;
 
-    // TODO Ident et peut etre constructeur 
     let res = Function {
         name       : decode_str(iter, name_size)?,
         first_line : decode_int(iter, metadata.i_size, metadata.bigendian)?,
@@ -304,25 +319,26 @@ fn decode_function_block(iter: &mut IntoIter<u8>, metadata: &Metadata) -> Result
         instr_list : decode_list(iter, metadata, decode_instruction)?,
         const_list : decode_list(iter, metadata, decode_constant)?,
         func_list  : decode_list(iter, metadata, decode_function_block)?,
-        // TODO Continuer de factoriser le code
         lines_list : decode_lines_list(iter, metadata)?,
         local_list : decode_list(iter, metadata, decode_local_variable)?,
         upvalues_list : decode_upvalues_list(iter, metadata)?,
+        // we assign the identifier to the function in the interpreter
         identifier : 0
     };
 
     Ok (res)
 } 
 
-fn decode_bytecode(iter:&mut IntoIter<u8>, config: Vmconfig) -> Result<Function, DecompileError>{
-    decode_signature(iter)?;
+/// parse the compiled file
+fn decode_bytecode(mut iter:IntoIter<u8>, config: Vmconfig) -> Result<Function, DecompileError>{
+    decode_signature(&mut iter)?;
 
     let dump = config.get_dump();
 
-    let metadata = decode_metadata(iter)?;
+    let metadata = decode_metadata(&mut iter)?;
     verify_metadata(&metadata, config)?;
 
-    let main = decode_function_block(iter, &metadata)?;
+    let main = decode_function_block(&mut iter, &metadata)?;
 
     if dump {
         println!("{}", metadata);
@@ -334,9 +350,11 @@ fn decode_bytecode(iter:&mut IntoIter<u8>, config: Vmconfig) -> Result<Function,
 
 pub fn decompile(config : Vmconfig) -> Result<Function, Box<dyn Error>> {
 
-    let mut bytecode_iter = fs::read(config.get_path())?.into_iter();
+    // reads the file ans transform the content into an iterator over an array of bytes
+    // We only need to read each byte once
+    let bytecode_iter = fs::read(config.get_path())?.into_iter();
 
-    let main = decode_bytecode(&mut bytecode_iter, config)?;
+    let main = decode_bytecode(bytecode_iter, config)?;
 
     Ok(main)
 }

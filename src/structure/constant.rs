@@ -1,5 +1,5 @@
 use std::fmt;
-use crate::object::Value;
+use crate::interpreter::object::Value;
 
 // TODO Retirer cette enum directement utilise value
 #[derive(Debug, Clone)]

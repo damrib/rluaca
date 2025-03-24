@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-
-use crate::{object::Value, runtime_library};
+use crate::interpreter::{object::Value, runtime_library};
 
 #[derive(thiserror::Error, Debug)]
 pub enum EnvironmentError {
@@ -10,17 +9,20 @@ pub enum EnvironmentError {
     }
 }
 
+/** Table where global variables are stored during interpretation */
 pub struct GlobalEnvironment<'ge> {
     global_map: HashMap<String, Value<'ge>>
 }
 
 impl <'ge> GlobalEnvironment<'ge> {
 
+    /* Creates a new global environment containing the function from the runtime library*/
     pub fn new() -> Self {
         let mut res = GlobalEnvironment { 
             global_map : HashMap::new() 
         };
 
+        // Adding runtime function in the HashTable
         res.global_map.insert(String::from("print"), Value::RuntimeFunction(runtime_library::print_lua));
 
         res

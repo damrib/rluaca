@@ -1,12 +1,4 @@
-use crate::{interpreter::CallFrame, object::Value};
-
-#[derive(thiserror::Error, Debug)]
-pub enum RuntimeError{
-    #[error("Function not found:")]
-    FunctionNotFound {
-        func_name : String
-    }
-}
+use crate::interpreter::{call_frame::CallFrame, object::Value};
 
 pub type RuntimeFunction<'frm> = fn (CallFrame<'frm>, &mut Vec<Value<'frm>>);
 

@@ -6,3 +6,4 @@ local function g(b)
 	return d + e + b + g
 end
 local b = g(a)
+print(b)
